@@ -26,6 +26,7 @@
   "autoUpdates": false,
   "skipLogin": true,
   "skipDangerousModePermissionPrompt": true,
+  "hasTrustDialogAccepted": true,
   "theme": "dark"
 }
 ```
@@ -37,6 +38,16 @@
 | `MCP_TIMEOUT` | 60000 | MCP server 启动超时，默认 30s 对 Playwright 不够 |
 | `MCP_TOOL_TIMEOUT` | 600000 | 单次 MCP 工具调用超时（浏览器操作慢） |
 | `API_TIMEOUT_MS` | 600000 | API 请求超时 |
+
+## 其他配置项
+
+| 项 | 作用 |
+|---|---|
+| `hasTrustDialogAccepted: true` | 跳过进入目录时的"是否信任此文件夹"提示 |
+| `skipDangerousModePermissionPrompt: true` | 跳过危险模式权限提示 |
+| `skipLogin: true` | 跳过登录（用自建端点时） |
+| `alwaysThinkingEnabled: true` | 默认开启思考模式 |
+| `autoUpdates: false` | 关闭自动更新 |
 
 ## 安装
 

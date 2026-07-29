@@ -55,14 +55,22 @@ sudo usermod -aG docker $USER
 
 **解决**：用 nvm 装 Node 20 并设为默认，MCP 命令用 nvm 的 node/npx 绝对路径。
 
-## 6. Playwright MCP 用 npx 启动握手失败
+## 6. MCP 用 npx 启动慢/握手失败
 
-**现象**：`claude mcp list` 报 `Connection closed`，但手动 `npx @playwright/mcp` 能正常 initialize。
+**现象**：
+- playwright：`claude mcp list` 报 `Connection closed`，但手动 `npx @playwright/mcp` 能正常 initialize
+- searxng：启动要 7.6 秒，拖慢 Claude Code 启动
 
-**原因**：npx 启动开销 + 可能 stdout 污染 JSON-RPC，Claude Code 的 stdio 握手读不到响应。
+**原因**：npx 每次启动要检查/解析包，开销大；playwright 还可能 stdout 污染 JSON-RPC 导致 Claude Code 的 stdio 握手读不到响应。
 
-**解决**：绕过 npx，用 `node <cli.js路径>` 直接调用：
+**解决**：两个 MCP 都绕过 npx，用 `node <cli.js路径>` 直接调用：
 ```bash
+# searxng（7.6s → 0.5s）
+claude mcp add searxng -s user --env SEARXNG_URL=http://localhost:8080 \
+  -- /home/witcher/.nvm/versions/node/v20.20.2/bin/node \
+  /home/witcher/.npm/_npx/<hash>/node_modules/mcp-searxng/dist/cli.js
+
+# playwright
 claude mcp add playwright -s user -- \
   /home/witcher/.nvm/versions/node/v20.20.2/bin/node \
   /home/witcher/.npm/_npx/<hash>/node_modules/@playwright/mcp/cli.js \

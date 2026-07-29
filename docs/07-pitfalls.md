@@ -122,3 +122,32 @@ npx -y @playwright/mcp install-browser chrome-for-testing
 ## 12. god-search 不可用
 
 **调研结论**：god-search（号称免费无限无 key 的浏览器抓取方案）只有 2 star、发布一周、LobeHub 标 Unvalidated、文档自相矛盾。不推荐。SearXNG 的 google cse 引擎已能正常返回 Google 结果，不需要它。
+
+## 13. wsl --shutdown 后 SearXNG 容器 restart 失败（bind mount 失效）
+
+**现象**：`wsl --shutdown` 重进 WSL 后，`docker compose restart searxng` 报错：
+```
+mount src=/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/... no such file or directory
+```
+容器起不来，`localhost:8080` 返回 000。
+
+**原因**：Docker Desktop 给 WSL bind mount 用临时路径 `/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/...`，`wsl --shutdown` 后该路径重建，旧容器记录的路径失效。`restart` 复用旧 mount 配置 → 找不到源文件。
+
+**解决**：用 `down && up` 重建容器（重新建立 bind mount），不要用 `restart`：
+```bash
+cd ~/wsl-claude-setup
+docker compose down && docker compose up -d
+```
+
+**根治（可选）**：把 `docker-compose.yml` 的 bind mount 改成 Docker named volume，路径由 Docker 稳定管理，不受 WSL 重启影响。代价是改 `settings.yml` 要进 volume 里改，不如 bind mount 方便。对偶尔 `wsl --shutdown` 的场景，`down/up` 已够用。
+
+## 14. SearXNG 上游引擎反爬（google cse / brave / ddg / startpage / qwant 返回 0 结果）
+
+**现象**：搜索引擎注册了但搜索返回 0 条，`docker logs searxng` 刷 ERROR：
+- duckduckgo / qwant / startpage：`CAPTCHA`
+- google cse：`unusual traffic`（suspend 180s）
+- brave：无结果
+
+**原因**：这些大引擎对 SearXNG 的自动化请求识别为机器人，主动拒。**和代理无关**——容器内经代理访问 google 返回 200，是上游引擎层反爬。
+
+**解决**：禁用这些引擎（`disabled: true`），改用实测稳定的 bing/baidu/yandex/mojeek/sogou/360search。如需 google cse 或 brave，配对应 API key 后再启用。详见 [SearXNG 配置 · 引擎稳定性](03-searxng.md#引擎稳定性实测)。

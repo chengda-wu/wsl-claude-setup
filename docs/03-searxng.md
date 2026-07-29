@@ -29,23 +29,35 @@ server:
   bind_address: "0.0.0.0"
   port: 8080
 engines:
-  - name: google cse
-    disabled: false
+  # 通用（稳定）
   - name: bing
     disabled: false
   - name: baidu
     disabled: false
+  - name: yandex
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: sogou
+    disabled: false
+  - name: 360search
+    disabled: false
+  # 反爬不可用（见下文「引擎稳定性」）
+  - name: google cse
+    disabled: true
   - name: brave
-    disabled: true       # 总是限流
+    disabled: true
   - name: duckduckgo
-    disabled: true       # 总是 CAPTCHA
+    disabled: true
   - name: startpage
-    disabled: true       # 总是 CAPTCHA
+    disabled: true
+  - name: qwant
+    disabled: true
 ```
 
 改完配置重启容器：
 ```bash
-docker restart searxng
+docker compose down && docker compose up -d   # 不要用 restart，见踩坑笔记 #13
 ```
 
 ## 验证
@@ -61,9 +73,27 @@ curl -s 'http://localhost:8080/search?q=test&format=json' | head -c 300
 
 - **必须开 JSON 输出**：`search.formats` 加 `json`，否则 MCP 调用返回 403
 - **禁用引擎用 `disabled: true`**，不是 `enabled: false`（SearXNG 的字段名）
-- **保留 Google**：`google cse` 引擎实测稳定，是主力
-- 禁用 brave/duckduckgo/startpage 是因为它们对自动化访问触发限流/CAPTCHA，留着只会污染结果
 - SearXNG 本身不限流，限流的是它背后的上游引擎
+
+## 引擎稳定性（实测）
+
+自建 SearXNG 访问大引擎会触发反爬，**和代理通不通无关**（容器内代理 200 正常，是上游引擎主动拒）。实测结论：
+
+| 引擎 | 状态 | 说明 |
+|---|---|---|
+| bing / baidu | ✅ 稳定 | 主力，中英文都行 |
+| yandex | ✅ 稳定 | 英文补充，结果多 |
+| mojeek | ✅ 稳定 | 独立索引，不依赖大厂 |
+| sogou / 360search | ✅ 稳定 | 中文补充（sogou wechat 可搜公众号文章） |
+| google cse | ❌ 封禁 | "unusual traffic" suspend 180s，需配 CSE API key 才稳 |
+| brave | ❌ 不可用 | 需配 API key（有免费额度）才稳 |
+| duckduckgo | ❌ CAPTCHA | 几乎必然触发 |
+| startpage | ❌ CAPTCHA | 几乎必然触发 |
+| qwant | ❌ CAPTCHA | 几乎必然触发 |
+
+**推荐配置**：开 bing/baidu/yandex/mojeek/sogou/360search，禁用 google cse/brave/duckduckgo/startpage/qwant。禁用的引擎留着只会返回 0 结果、刷 ERROR 日志。如需启用 google cse 或 brave，配对应 API key 后再 `disabled: false`。
+
+> 验证方法：`curl -s 'http://localhost:8080/search?q=test&format=json&engines=brave'` 看返回结果数；看报错 `docker logs searxng 2>&1 | grep -iE 'captcha|suspend|unusual'`。
 
 ## 引擎状态查询
 

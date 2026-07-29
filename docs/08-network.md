@@ -154,3 +154,78 @@ env | grep -i proxy
 - WSL2 的 localhost 转发行为依赖 `wslrelay`，偶有失效，重启 WSL 可恢复
 - 本栈核心（SearXNG + MCP）都在 WSL 内闭环，网络模式对日常使用无影响
 - 代理客户端（Clash/Mihomo）需在 Windows 侧常驻运行，否则 WSL 内所有外网访问失败
+
+---
+
+## NAT 模式（另一台机器的实际配置）
+
+上面讲的是 Mirrored。另一台机器用 **NAT 模式**，代理走默认网关 IP，同样工作正常。两套配置二选一，取决于 Mirrored 在你机器上 loopback 中继是否正常（见下文「Mirrored 失败排查」）。
+
+### .wslconfig（NAT）
+
+```ini
+[wsl2]
+networkingMode=NAT
+
+[experimental]
+autoMemoryReclaim=gradual
+dnsTunneling=true
+sparseVhd=true
+```
+
+### 代理配置（NAT）
+
+NAT 模式下 WSL 的 `127.0.0.1` 是 WSL 自己，**连不到** Windows 代理。要用默认网关 IP（= Windows 主机）：
+
+```bash
+# ~/.bashrc
+export WIN_HOST=$(ip route | grep default | awk '{print $3}')   # NAT 网关 = Windows 主机
+export HTTP_PROXY="http://${WIN_HOST}:7897"
+export HTTPS_PROXY="$HTTP_PROXY"
+export ALL_PROXY="socks5://${WIN_HOST}:7897"
+export NO_PROXY="localhost,127.0.0.1,::1"
+```
+
+> 网关 IP 每次 `wsl --shutdown` 后可能变，所以用 `ip route` 动态取，不要写死。
+> 代理客户端（Clash Verge）要开"允许局域网连接"，否则拒绝来自 WSL 子网的连接。
+
+### 实测
+
+```
+网关: 172.24.160.1
+WSL → 172.24.160.1:7897: 200, 1.5s ✓
+出口 IP: 203.10.99.50（代理出口）
+```
+
+### SearXNG 容器走代理（NAT）
+
+容器内 `host.docker.internal` 由 Docker Desktop 解析到 Windows 主机（`192.168.65.254`），用它配代理：
+
+```yaml
+# docker-compose.override.yml（不提交，每台机器代理地址不同）
+services:
+  searxng:
+    environment:
+      - HTTP_PROXY=http://host.docker.internal:7897
+      - HTTPS_PROXY=http://host.docker.internal:7897
+      - NO_PROXY=localhost,127.0.0.1
+```
+
+## Mirrored 失败排查（某台机器 loopback 中继不工作）
+
+**背景**：一台机器从 Mirrored 切到 NAT，因为 Mirrored 下代理不通。后又尝试切回 Mirrored，仍失败。
+
+**现象**：Mirrored 模式下，WSL 连 `127.0.0.1:7897`（代理）超时，连 `127.0.0.1:9097`（Clash external-controller，Windows 侧确认在监听）也超时。但 Windows 自己连 `127.0.0.1:7897` 正常（200）。
+
+**结论**：Mirrored 的 **localhost 中继本身在这台机器不工作**——WSL 的 `127.0.0.1` 没镜像到 Windows loopback。不是防火墙（`firewall=false` 无效）、不是 Clash（Windows 侧正常）、不是配置过载（最小 Mirrored 配置也失败）。
+
+**试过但无效**：
+- 最小配置 `networkingMode=Mirrored` + `nestedVirtualization=true`
+- 加 `firewall=false`（关 Hyper-V 防火墙）
+- 加/删 `hostAddressLoopback=true`、`autoProxy`、`dnsTunneling`
+
+**未定位根因**。下次排查方向：**逐行对比能正常工作的机器的 `.wslconfig`**——两台机器配置差异是关键线索，但始终没拿到另一台的文件。
+
+**务实选择**：NAT 模式行为可预测、文档成熟，代理走网关 IP 稳定工作。Mirrored 不通就回退 NAT，不影响本栈任何功能。
+
+> 注意区分两个独立问题：(1) Mirrored loopback 中继不工作（WSL 配置层面，未解决）；(2) Clash 进程偶发僵死（监听在但不响应新连接，Windows 侧自测也超时，重启 Clash + 选可用节点即恢复）。两者都表现为 WSL 代理不通，但根因不同。

@@ -11,15 +11,34 @@ server:
   bind_address: "0.0.0.0"
   port: 8080
 engines:
-  - name: google cse
-    disabled: false
+  # === 通用 Web 搜索（实测稳定）===
   - name: bing
     disabled: false
   - name: baidu
     disabled: false
+  - name: yandex
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: sogou
+    disabled: false
+  - name: 360search
+    disabled: false
+  # === 通用 Web 搜索（反爬不可用，默认禁用）===
+  # 以下引擎对自建 SearXNG 触发反爬，长期返回 0 结果：
+  #   google cse  → "unusual traffic" 封禁（需配 CSE API key 才稳）
+  #   brave       → 需配 API key（有免费额度）才稳
+  #   duckduckgo  → CAPTCHA
+  #   startpage   → CAPTCHA
+  #   qwant       → CAPTCHA
+  # 留着只会污染结果、刷 ERROR 日志。如需启用，配对应 API key 后改 disabled: false。
+  - name: google cse
+    disabled: true
   - name: brave
     disabled: true
   - name: duckduckgo
     disabled: true
   - name: startpage
+    disabled: true
+  - name: qwant
     disabled: true

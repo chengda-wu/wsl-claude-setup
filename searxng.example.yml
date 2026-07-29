@@ -10,6 +10,20 @@ server:
   secret_key: "请改成你自己的随机字符串"
   bind_address: "0.0.0.0"
   port: 8080
+# === 上游代理（让 SearXNG 容器经宿主机代理访问 Google/Bing/Baidu 等引擎）===
+# 实测要点（见 docs/03-searxng.md「代理」与 docs/08-network.md）：
+#   1. 必须用 SearXNG 的 outgoing.proxies，光给容器配 HTTP_PROXY 环境变量不够
+#      （env 在场时引擎仍报 HTTP connection error）
+#   2. enable_http2 必须关：经 HTTP 代理走 HTTPS+HTTP/2 握手会失败
+#   3. request_timeout 默认 3s 太短，经代理经常超时，调到 10s
+#   4. host.docker.internal 由 Docker Desktop 解析到宿主机（固定 192.168.65.254，
+#      不随局域网 IP 变化）；代理客户端需开"允许局域网连接"
+outgoing:
+  request_timeout: 10.0
+  enable_http2: false
+  proxies:
+    all://:
+      - http://host.docker.internal:7897
 engines:
   # === 通用 Web 搜索（实测稳定）===
   - name: bing

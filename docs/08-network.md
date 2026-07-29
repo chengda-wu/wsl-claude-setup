@@ -121,19 +121,19 @@ export NO_PROXY=localhost,127.0.0.1,::1,.local
 
 ### SearXNG 容器走代理
 
-容器默认不继承 WSL 的代理 env。若上游引擎访问异常，给容器配代理：
+容器默认连不通外网引擎（bing/baidu 等全部 `HTTP connection error`）。**必须用 SearXNG 自己的 `outgoing.proxies`，光给容器配 `HTTP_PROXY` 环境变量不够**——实测 env 在场时引擎仍报 connection error，加 `outgoing.proxies` 才通。同时必须关 `enable_http2`、把 `request_timeout` 调到 10s（默认 3s 经代理太短）。
 
 ```yaml
-# docker-compose.yml
-services:
-  searxng:
-    environment:
-      - HTTP_PROXY=http://host.docker.internal:7897
-      - HTTPS_PROXY=http://host.docker.internal:7897
-      - NO_PROXY=localhost,127.0.0.1
+# settings.yml（见 docs/03-searxng.md「代理」）
+outgoing:
+  request_timeout: 10.0
+  enable_http2: false
+  proxies:
+    all://:
+      - http://host.docker.internal:7897
 ```
 
-> Mirrored 模式下容器内 `host.docker.internal` 指向 Windows 主机；或用 `127.0.0.1`（Mirrored 下容器与主机共享 localhost）。代理客户端要允许局域网/外部连接。
+`host.docker.internal` 由 Docker Desktop 解析到宿主机（固定 `192.168.65.254`，不随局域网 IP 变化），代理客户端要开"允许局域网连接"。改完 `docker compose down && up -d`（不要用 restart）。
 
 ### 排查代理问题
 
@@ -199,17 +199,19 @@ WSL → 172.24.160.1:7897: 200, 1.5s ✓
 
 ### SearXNG 容器走代理（NAT）
 
-容器内 `host.docker.internal` 由 Docker Desktop 解析到 Windows 主机（`192.168.65.254`），用它配代理：
+同 Mirrored 段：用 `settings.yml` 的 `outgoing.proxies`（不是 env 变量），关 `enable_http2`，`request_timeout: 10.0`。`host.docker.internal` 由 Docker Desktop 解析到 Windows 主机（`192.168.65.254`，不随局域网 IP 变化）。
 
 ```yaml
-# docker-compose.override.yml（不提交，每台机器代理地址不同）
-services:
-  searxng:
-    environment:
-      - HTTP_PROXY=http://host.docker.internal:7897
-      - HTTPS_PROXY=http://host.docker.internal:7897
-      - NO_PROXY=localhost,127.0.0.1
+# settings.yml
+outgoing:
+  request_timeout: 10.0
+  enable_http2: false
+  proxies:
+    all://:
+      - http://host.docker.internal:7897
 ```
+
+> 不要把代理地址写死成局域网 IP（如 `192.168.10.7`）——路由器重新分配后搜索会再失效。`host.docker.internal` 是稳定选择。
 
 ## Mirrored 失败排查（某台机器 loopback 中继不工作）
 
@@ -223,6 +225,12 @@ services:
 - 最小配置 `networkingMode=Mirrored` + `nestedVirtualization=true`
 - 加 `firewall=false`（关 Hyper-V 防火墙）
 - 加/删 `hostAddressLoopback=true`、`autoProxy`、`dnsTunneling`
+- `CheckNetIsolation LoopbackExempt -a -n=MicrosoftCorporationII.WindowsSubsystemForLinux_...`（CSDN 文章给的 UWP 环回豁免方案，Win11 26200 上无效——豁免加成功但 `127.0.0.1:7897` 仍超时）
+- `Set-NetFirewallHyperVVMSetting -DefaultInboundAction Allow` + `LoopbackEnabled Allow`（按微软官方 mirror 文档配 Hyper-V 防火墙，仍超时；`LoopbackEnabled` 设了不生效，回 `NotConfigured`）
+
+**官方文档说支持但实测不通**：微软 [WSL networking 文档](https://learn.microsoft.com/en-us/windows/wsl/networking) 明确称 mirror 模式可"用 `127.0.0.1` 从 Linux 连 Windows 服务"，并要求配 Hyper-V 防火墙 `Set-NetFirewallHyperVVMSetting ... Allow`。本机照做仍超时——属于该机器 mirror loopback 转发的实现缺陷，非配置问题。
+
+**autoProxy 的坑**：mirror 模式开 `autoProxy=true` 后，注入 WSL 的代理地址被探错——写成路由器网关 IP（如 `192.168.10.1`）而非 Windows 本机，导致代理变量指向一个没跑代理的地址。所以 autoProxy 在此机不可靠，手动配更稳。
 
 **未定位根因**。下次排查方向：**逐行对比能正常工作的机器的 `.wslconfig`**——两台机器配置差异是关键线索，但始终没拿到另一台的文件。
 

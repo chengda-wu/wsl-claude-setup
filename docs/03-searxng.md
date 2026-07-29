@@ -28,6 +28,13 @@ server:
   secret_key: "local-dev-secret-change-me"
   bind_address: "0.0.0.0"
   port: 8080
+# 上游代理（见下文「代理」）
+outgoing:
+  request_timeout: 10.0
+  enable_http2: false
+  proxies:
+    all://:
+      - http://host.docker.internal:7897
 engines:
   # 通用（稳定）
   - name: bing
@@ -59,6 +66,22 @@ engines:
 ```bash
 docker compose down && docker compose up -d   # 不要用 restart，见踩坑笔记 #13
 ```
+
+## 代理（让上游引擎可达）
+
+SearXNG 容器默认连不通外网引擎（bing/baidu 等全部 `HTTP connection error`）。必须给容器配上游代理，**且要用 SearXNG 自己的 `outgoing.proxies`，光配 `HTTP_PROXY` 环境变量不够**——实测 env 在场时引擎仍报 connection error，加上 `outgoing.proxies` 才通。
+
+三个必选项（缺一不可）：
+
+| 项 | 值 | 原因 |
+|---|---|---|
+| `outgoing.proxies` | `http://host.docker.internal:7897` | SearXNG 真正读取的代理配置；env 变量不生效 |
+| `enable_http2` | `false` | 经 HTTP 代理走 HTTPS+HTTP/2 握手会失败 |
+| `request_timeout` | `10.0` | 默认 3s 经代理太短，频繁超时 |
+
+`host.docker.internal` 由 Docker Desktop 解析到宿主机（固定 `192.168.65.254`，**不随局域网 IP 变化**），代理客户端（Clash/Mihomo）要开"允许局域网连接"。
+
+> 验证：`docker exec searxng sh -c 'wget -qO- --timeout=6 -e use_proxy=yes -e https_proxy=http://host.docker.internal:7897 https://www.google.com -O /dev/null; echo exit=$?'` 应为 `exit=0`。容器内通但搜索仍无结果 → 检查 `enable_http2: false` 和 `request_timeout`。
 
 ## 验证
 

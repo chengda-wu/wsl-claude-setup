@@ -29,6 +29,17 @@
 - [Skill / Plugin 配置](docs/06-skills.md)
 - [踩坑笔记](docs/07-pitfalls.md)
 
+## 快速复用
+
+```bash
+# 1. SearXNG
+cp searxng.example.yml settings.yml   # 改 secret_key
+docker compose up -d
+
+# 2. Claude Code 配置模板
+cp settings.example.json ~/.claude/settings.json  # 填 API key、改端点
+```
+
 ## 关键踩坑速查
 
 1. Docker Desktop WSL 集成要 distro 重启才注入 socket；手改 `settings-store.json` 的 `WslIntegrations` 键不一定生效

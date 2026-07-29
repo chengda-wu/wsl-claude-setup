@@ -1,0 +1,16 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "ANTHROPIC_API_KEY": "填你的 API key",
+    "ANTHROPIC_MODEL": "claude-sonnet-5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "claude-haiku-4-5-20251001",
+    "API_TIMEOUT_MS": "600000",
+    "MCP_TIMEOUT": "60000",
+    "MCP_TOOL_TIMEOUT": "600000"
+  },
+  "alwaysThinkingEnabled": true,
+  "autoCompactWindow": 262144,
+  "autoCompactEnabled": true,
+  "autoUpdates": false,
+  "theme": "dark"
+}

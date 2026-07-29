@@ -1,0 +1,15 @@
+# SearXNG 一键部署
+# 用法：docker compose up -d
+# 配置文件放 ./settings.yml（见 docs/03-searxng.md）
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro

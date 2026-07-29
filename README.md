@@ -28,6 +28,7 @@
 - [Claude Code 配置](docs/05-claude.md)
 - [Skill / Plugin 配置](docs/06-skills.md)
 - [踩坑笔记](docs/07-pitfalls.md)
+- [网络与 VPN 配置](docs/08-network.md)
 
 ## 快速复用
 

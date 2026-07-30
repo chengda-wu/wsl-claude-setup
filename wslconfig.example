@@ -1,12 +1,13 @@
 # Windows 侧 WSL 全局配置文件
 # 路径：C:\Users\<用户名>\.wslconfig
 # 把本文件内容贴到上述路径即可（文件名/后缀无所谓）。
+#
+# ↓↓↓ 本机（Windows 11 24H2 / build 26100）实际使用的就是下面这两行 ↓↓↓
 
 [wsl2]
-# === 网络模式 ===
 # Mirrored：WSL 与 Windows 共享 localhost，WSL 内 127.0.0.1 可直连 Windows 代理（Clash/Mihomo）。
-#   仅 Windows 11 24H2 (build 26100) 起的 loopback 中继稳定；
-#   25H2 预览 (build 26200) 在部分机器中继失效，见 docs/08-network.md「本机 Mirrored 为什么通」。
+#   仅 Windows 11 24H2 (build 26100) 起被运行时接受并稳定工作；
+#   25H2 预览 (build 26200) 运行时直接拒绝 Mirrored、fallback NAT，见 docs/08-network.md。
 networkingMode=Mirrored
 
 # ──────────────────────────────────────────────

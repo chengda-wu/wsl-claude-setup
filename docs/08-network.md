@@ -199,16 +199,25 @@ $ curl -s https://api.ipify.org
 
 WSL 自己没监听 7897 却能连上 → 连接是经 `loopback0` 中继到 Windows 的 `127.0.0.1:7897`（Clash 监听处）。这就是 Mirrored loopback 中继工作的直接证据。
 
-### 关键结论：版本决定中继是否可用
+### 关键结论：26200 运行时直接拒绝 Mirrored（根因已实锤）
 
-| 机器 | Windows 版本 | Mirrored loopback 中继 | 结果 |
+不是"中继不稳"，而是 **25H2 / build 26200 线移除/破坏了 Mirrored 所需的 Windows 功能，WSL 启动时直接拒绝启用 Mirrored、强制 fallback**。官方 issue [#13793](https://github.com/microsoft/WSL/issues/13793) 记录了完全一致的现象（26200.7171）：
+
+```
+wsl: Mirrored networking mode is not supported:
+      Windows version 26200.7171 does not have the required features.
+Falling back to NAT networking.
+wsl: Failed to configure network (networkingMode Nat), falling back to networkingMode VirtioProxy.
+```
+
+| 机器 | Windows 版本 | Mirrored 是否真正启用 | 结果 |
 |---|---|---|---|
-| **本机** | 11 **24H2 (build 26100)** | ✅ `loopback0` 正常工作 | Mirrored 直接通 |
-| **另一台** | 11 **25H2/预览 (build 26200)** | ❌ 中继不工作 | 必须退回 NAT |
+| **本机** | 11 **24H2 (build 26100)** | ✅ 运行时接受，`loopback0` 中继工作 | Mirrored 直接通 |
+| **另一台** | 11 **25H2/预览 (build 26200)** | ❌ 运行时拒绝，fallback NAT→VirtioProxy | `127.0.0.1` 连不到 Windows 代理 |
 
-两台 `.wslconfig` 都是最小 `networkingMode=Mirrored`，配置无差异；区别只在 Windows 版本。**26100（24H2）的 Mirrored loopback 中继稳定，26200（25H2 预览版）在该机器上中继失效**——属于该 build 的实现缺陷，非配置问题（详见下文「Mirrored 失败排查」）。
+两台 `.wslconfig` 都是最小 `networkingMode=Mirrored`，配置无差异。**另一台配着 Mirrored 但运行时根本没启用**——这就是为什么所有配置层排查（防火墙 / autoProxy / LoopbackExempt / Hyper-V 防火墙）全无效：改一个没生效的模式当然没用。用户反馈"25H2 更新前能用，更新后坏"。
 
-> 实务建议：先确认 Windows 版本。24H2（26100）可放心用 Mirrored；25H2/预览版（26200）若 Mirrored 下代理超时，直接退回 NAT（代理走网关 IP），不要在 mirror loopback 上耗时间排查——根因在平台层。
+> 实务建议：先确认 Windows 版本。24H2（26100）可放心用 Mirrored；25H2/预览版（26200）若 Mirrored 下代理超时，**直接退回 NAT**（代理走网关 IP），不要在 mirror loopback 上耗时间排查——根因在平台层（[#13793](https://github.com/microsoft/WSL/issues/13793)），配置改不动。验证是否真的 fallback：看 `wsl` 启动日志有没有 "Mirrored networking mode is not supported" / "Falling back to NAT"。
 
 ---
 
@@ -287,7 +296,17 @@ outgoing:
 
 **autoProxy 的坑**：mirror 模式开 `autoProxy=true` 后，注入 WSL 的代理地址被探错——写成路由器网关 IP（如 `192.168.10.1`）而非 Windows 本机，导致代理变量指向一个没跑代理的地址。所以 autoProxy 在此机不可靠，手动配更稳。
 
-**已定位的关键线索（版本差异）**：本机（build 26100 / 24H2）Mirrored loopback 中继正常工作（见上文「本机 Mirrored 为什么通」），这台（build 26200 / 25H2 预览版）中继失效。两台 `.wslconfig` 配置相同，唯一区别是 Windows 版本——**根因在 26200 这个 build 的 Mirrored loopback 实现缺陷，不是配置问题**。这也解释了为何所有配置层排查（防火墙、autoProxy、LoopbackExempt、Hyper-V 防火墙）都无效：改配置修不了平台层 bug。
+**已定位根因（[#13793](https://github.com/microsoft/WSL/issues/13793)）**：build 26200（25H2）运行时直接拒绝 Mirrored（"does not have the required features"），fallback 到 NAT→VirtioProxy。本机（26100 / 24H2）功能在、Mirrored 正常（见上文「本机 Mirrored 为什么通」）。两台 `.wslconfig` 配置相同，根因在平台层而非配置——这也解释了为何所有配置层排查（防火墙、autoProxy、LoopbackExempt、Hyper-V 防火墙）都无效。
+
+> 即便 Mirrored 真正启用，WSL↔Windows 的 `127.0.0.1` loopback 中继也是跨版本的老 bug（非配置可修）。相关官方 issue 汇总：
+
+| issue | build | 现象 |
+|---|---|---|
+| [#13793](https://github.com/microsoft/WSL/issues/13793) | 26200 | **运行时拒绝 Mirrored**，fallback NAT→VirtioProxy ← 本机另一台真因 |
+| [#41196](https://github.com/microsoft/WSL/issues/41196) | 26200 | Mirrored 跑起来后 IPv4 `127.0.0.1` 转发失败，IPv6 `::1` 还能用 |
+| [#13459](https://github.com/microsoft/WSL/issues/13459) | 23H2 | Mirrored 下完全无网（只剩 loopback） |
+| [#11312](https://github.com/microsoft/WSL/issues/11312) | 23H2 | Mirrored 下 `127.0.0.1:port` 连 Windows 服务 connection refused |
+| [#13724](https://github.com/microsoft/WSL/issues/13724) | 24H2+KB | KB5068861 单独搞坏 Mirrored+VPN，卸载即恢复 |
 
 **务实选择**：NAT 模式行为可预测、文档成熟，代理走网关 IP 稳定工作。Mirrored 不通就回退 NAT，不影响本栈任何功能。
 

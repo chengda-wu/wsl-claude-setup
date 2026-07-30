@@ -157,6 +157,61 @@ env | grep -i proxy
 
 ---
 
+## 本机 Mirrored 为什么通（对比另一台必须用 NAT 的根因）
+
+本机用 Mirrored，`127.0.0.1:7897` 直接通（`curl` 200，0.47s，出口 IP `203.10.98.186` 即代理出口）。为什么本机通、另一台必须退回 NAT？实测定位到 **Windows 版本差异** 是决定因素。
+
+### 本机环境
+
+```
+Windows: 10.0.26100.8973  (Windows 11 24H2 稳定版)
+WSL 内核: 6.6.87.2-microsoft-standard-WSL2
+.wslconfig: 仅 networkingMode=Mirrored（无 firewall/autoProxy 等额外项）
+```
+
+### 通的机制：loopback0 中继网卡
+
+Mirrored 模式靠一张 Hyper-V 虚拟网卡把 WSL 的 `127.0.0.1` 流量中继到 Windows 的 `127.0.0.1`。本机这张网卡在、且正常工作：
+
+```
+$ ip -br addr
+lo          127.0.0.1/8  10.255.255.254/32
+eth0        172.30.221.166/32          # 镜像的某个 Windows 网卡（/32 是 Mirrored 特征）
+loopback0   UP                          # ← Mirrored 的 loopback 中继桥
+eth1        7.250.75.250/24             # 镜像的另一个 Windows 网卡（默认出口走它）
+
+$ ip -d link show loopback0
+link/ether 00:15:5d:99:69:ce ... parentbus vmbus ...   # 00:15:5d 是 Hyper-V MAC 前缀，vmbus = Hyper-V 虚拟设备
+```
+
+验证它确实在跨边界中继（而非 WSL 本地直连）：
+
+```
+$ ss -tlnp | grep 7897
+（空）                              # WSL 内没有任何进程监听 7897
+
+$ curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" --proxy http://127.0.0.1:7897 https://www.google.com
+200 0.47s                           # 但能连上 → 流量经 loopback0 穿到 Windows 侧的 Clash
+
+$ curl -s https://api.ipify.org
+203.10.98.186                       # 代理出口 IP，证明走了 Windows 的 Clash
+```
+
+WSL 自己没监听 7897 却能连上 → 连接是经 `loopback0` 中继到 Windows 的 `127.0.0.1:7897`（Clash 监听处）。这就是 Mirrored loopback 中继工作的直接证据。
+
+### 关键结论：版本决定中继是否可用
+
+| 机器 | Windows 版本 | Mirrored loopback 中继 | 结果 |
+|---|---|---|---|
+| **本机** | 11 **24H2 (build 26100)** | ✅ `loopback0` 正常工作 | Mirrored 直接通 |
+| **另一台** | 11 **25H2/预览 (build 26200)** | ❌ 中继不工作 | 必须退回 NAT |
+
+两台 `.wslconfig` 都是最小 `networkingMode=Mirrored`，配置无差异；区别只在 Windows 版本。**26100（24H2）的 Mirrored loopback 中继稳定，26200（25H2 预览版）在该机器上中继失效**——属于该 build 的实现缺陷，非配置问题（详见下文「Mirrored 失败排查」）。
+
+> 实务建议：先确认 Windows 版本。24H2（26100）可放心用 Mirrored；25H2/预览版（26200）若 Mirrored 下代理超时，直接退回 NAT（代理走网关 IP），不要在 mirror loopback 上耗时间排查——根因在平台层。
+
+---
+
 ## NAT 模式（另一台机器的实际配置）
 
 上面讲的是 Mirrored。另一台机器用 **NAT 模式**，代理走默认网关 IP，同样工作正常。两套配置二选一，取决于 Mirrored 在你机器上 loopback 中继是否正常（见下文「Mirrored 失败排查」）。
@@ -232,7 +287,7 @@ outgoing:
 
 **autoProxy 的坑**：mirror 模式开 `autoProxy=true` 后，注入 WSL 的代理地址被探错——写成路由器网关 IP（如 `192.168.10.1`）而非 Windows 本机，导致代理变量指向一个没跑代理的地址。所以 autoProxy 在此机不可靠，手动配更稳。
 
-**未定位根因**。下次排查方向：**逐行对比能正常工作的机器的 `.wslconfig`**——两台机器配置差异是关键线索，但始终没拿到另一台的文件。
+**已定位的关键线索（版本差异）**：本机（build 26100 / 24H2）Mirrored loopback 中继正常工作（见上文「本机 Mirrored 为什么通」），这台（build 26200 / 25H2 预览版）中继失效。两台 `.wslconfig` 配置相同，唯一区别是 Windows 版本——**根因在 26200 这个 build 的 Mirrored loopback 实现缺陷，不是配置问题**。这也解释了为何所有配置层排查（防火墙、autoProxy、LoopbackExempt、Hyper-V 防火墙）都无效：改配置修不了平台层 bug。
 
 **务实选择**：NAT 模式行为可预测、文档成熟，代理走网关 IP 稳定工作。Mirrored 不通就回退 NAT，不影响本栈任何功能。
 

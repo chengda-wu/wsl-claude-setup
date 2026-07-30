@@ -1,0 +1,28 @@
+# Windows 侧 WSL 全局配置文件
+# 路径：C:\Users\<用户名>\.wslconfig
+# 把本文件内容贴到上述路径即可（文件名/后缀无所谓）。
+
+[wsl2]
+# === 网络模式 ===
+# Mirrored：WSL 与 Windows 共享 localhost，WSL 内 127.0.0.1 可直连 Windows 代理（Clash/Mihomo）。
+#   仅 Windows 11 24H2 (build 26100) 起的 loopback 中继稳定；
+#   25H2 预览 (build 26200) 在部分机器中继失效，见 docs/08-network.md「本机 Mirrored 为什么通」。
+networkingMode=Mirrored
+
+# ──────────────────────────────────────────────
+# 若 Mirrored 在你的机器上代理不通，改用 NAT（另一台机器的实际配置）：
+# [wsl2]
+# networkingMode=NAT
+# [experimental]
+# autoMemoryReclaim=gradual
+# dnsTunneling=true
+# sparseVhd=true
+#
+# NAT 下 WSL 的 127.0.0.1 连不到 Windows 代理，要改走网关 IP：
+#   export WIN_HOST=$(ip route | grep default | awk '{print $3}')
+#   export HTTP_PROXY="http://${WIN_HOST}:7897"
+#   export HTTPS_PROXY="$HTTP_PROXY"
+#   export ALL_PROXY="socks5://${WIN_HOST}:7897"
+#   export NO_PROXY="localhost,127.0.0.1,::1"
+# 代理客户端需开「允许局域网连接」。详见 docs/08-network.md「NAT 模式」。
+# ──────────────────────────────────────────────

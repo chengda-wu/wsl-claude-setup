@@ -151,3 +151,30 @@ docker compose down && docker compose up -d
 **原因**：这些大引擎对 SearXNG 的自动化请求识别为机器人，主动拒。**和代理无关**——容器内经代理访问 google 返回 200，是上游引擎层反爬。
 
 **解决**：禁用这些引擎（`disabled: true`），改用实测稳定的 bing/baidu/yandex/mojeek/sogou/360search。如需 google cse 或 brave，配对应 API key 后再启用。详见 [SearXNG 配置 · 引擎稳定性](03-searxng.md#引擎稳定性实测)。
+
+## 15. SearXNG /search 返回 403（挂载的 settings.yml 是占位文件）
+
+**现象**：容器在跑（`curl localhost:8080/` 返回 200），但 `/search?format=json` 返回 SearXNG 自己的 `403 Forbidden`（不是上游引擎 403）。MCP 调用报 `SearXNG server Error (403)`。
+
+**原因**：`docker-compose.yml` 挂载 `./searxng:/etc/searxng`，但 repo 里的 `searxng/settings.yml` 是镜像自带的 204 字节占位（只 `use_default_settings` + `secret_key`，**没开 `search.formats: json`**）。SearXNG 默认只允许 html 输出，json 请求被拒 → 403。真实配置（含 json + 代理 + 引擎）在 `~/searxng/settings.yml`，没被挂载进去。
+
+**验证**：
+```bash
+docker exec searxng sh -c 'grep -A3 formats: /etc/searxng/settings.yml'
+# 空 / 没有 json → 就是这个问题
+```
+
+**解决**：让 compose 挂载真实配置。两种方式：
+
+1.（推荐）建 `docker-compose.override.yml`（已在 `.gitignore`，每台机器不同）把挂载指向真实配置目录：
+```yaml
+services:
+  searxng:
+    volumes:
+      - /home/witcher/searxng:/etc/searxng
+```
+然后 `docker compose down && up -d`。
+
+2. 或直接把 `~/searxng/settings.yml` 复制成 repo 的 `searxng/settings.yml`（注意容器以 uid 977 运行，覆盖需 sudo 或 `chown`）。
+
+> 排查顺序：先 `docker exec ... grep formats` 确认 json 开了——这是 403 的直接原因，不是引擎反爬（反爬是「引擎」层、`unresponsive_engines` 里报 Suspended，区别于这里 SearXNG 自身返回 403 html）。

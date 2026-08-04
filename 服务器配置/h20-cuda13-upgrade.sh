@@ -148,9 +148,9 @@ log "验证 NVSwitch 拓扑 (应看到 8 卡全互联)..."
 nvidia-smi topo -m | head -12
 log "Fabric Manager 就绪 ✓"
 
-# ---------- 第 4 步: 安装 CUDA Toolkit 13.3.1 (toolkit-only) ----------
+# ---------- 第 4 步: 安装 CUDA Toolkit 13.0.2 (toolkit-only) ----------
 log "【4/5】安装 CUDA Toolkit ${CUDA_VER} (只装工具链,不覆盖驱动)..."
-# 关键: --toolkit 只装 toolkit,不用 .run 内自带的旧驱动 (610.43.02)
+# 关键: --toolkit 只装 toolkit,不用 .run 内自带的旧驱动 (580.95.05)
 sh "cuda_${CUDA_VER}_${CUDA_RUN_DRIVER_TAG}_linux.run" \
   --toolkit --silent --override --accept-license --no-man-page-install
 log "配置环境变量..."

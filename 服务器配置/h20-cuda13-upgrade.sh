@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 #
-# H20 HGX 服务器升级: CUDA 12.9 / R575  →  CUDA 13.3.1 / R610 + Fabric Manager
+# H20 HGX 服务器升级: CUDA 12.9 / R575  →  CUDA 13.0.2 / R610 + Fabric Manager
 #
 # 适用: Ubuntu 20.04 (用 22.04 的 Fabric Manager deb,依赖 libc6>=2.10,20.04 满足)
-# 目标: 驱动 610.57.04 + Fabric Manager 610.57.04 + CUDA Toolkit 13.3.1 (toolkit-only)
+# 目标: 驱动 610.57.04 + Fabric Manager 610.57.04 + CUDA Toolkit 13.0.2 (toolkit-only)
+#
+# 为什么选 13.0.2 而非最新 13.3.1:
+#   vLLM / SGLang 的 cu130 wheel 均按 CUDA 13.0 编译 (vLLM 明确写 13.0.2)。
+#   框架文档未明确担保 cu130 wheel 在 13.3 宿主可跑,离线环境为零风险,
+#   宿主与 wheel 精确对齐到 13.0.2。CUDA 13.x 驱动门槛 >= 580,610 满足。
 #
 # 用法:
 #   1. 把三个安装包下载到本脚本同目录 (见下方 EXPECTED_FILES)
@@ -14,15 +19,15 @@
 #     https://us.download.nvidia.com/tesla/610.57.04/NVIDIA-Linux-x86_64-610.57.04.run
 #   Fabric Manager 610.57.04 (22.04 deb, 依赖 libc6>=2.10, 20.04 可用):
 #     https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/nvidia-fabricmanager_610.57.04-1ubuntu1_amd64.deb
-#   CUDA Toolkit 13.3.1 (.run, 跨发行版, 装时用 --toolkit 不覆盖驱动):
-#     https://developer.download.nvidia.com/compute/cuda/13.3.1/local_installers/cuda_13.3.1_610.43.02_linux.run
+#   CUDA Toolkit 13.0.2 (.run, 跨发行版, 装时用 --toolkit 不覆盖驱动):
+#     https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/cuda_13.0.2_580.95.05_linux.run
 #
 set -euo pipefail
 
 # ---------- 配置 ----------
 DRIVER_VER="610.57.04"
-CUDA_VER="13.3.1"
-CUDA_RUN_DRIVER_TAG="610.43.02"   # CUDA .run 内部绑定的驱动版本(更旧,故只装 toolkit)
+CUDA_VER="13.0.2"
+CUDA_RUN_DRIVER_TAG="580.95.05"   # CUDA .run 内部绑定的驱动版本(更旧,故只装 toolkit)
 FABRIC_DEB="nvidia-fabricmanager_610.57.04-1ubuntu1_amd64.deb"
 
 EXPECTED_FILES=(

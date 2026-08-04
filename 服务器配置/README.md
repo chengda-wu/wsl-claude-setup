@@ -58,42 +58,18 @@ nv-fabricmanager -v                         # 610.57.04, 与驱动一致
 nvcc --version                              # release 13.0
 ```
 
-## 装框架 (升级后,离线)
+## 装框架 (升级后)
 
-服务器离线,需先在有网机器用 `pip download` 把整棵依赖树预下到一个目录,再拷到服务器 `--no-index` 安装。
-
-**SGLang (默认 cu130,文档原文 "shipped with CUDA 13 by default"):**
 ```bash
-# 有网机器预下
-mkdir sglang-offline && cd sglang-offline
-pip download \
-  --extra-index-url https://docs.sglang.ai/whl/cu130/ \
-  --extra-index-url https://download.pytorch.org/whl/cu130/ \
-  --only-binary :all: sglang
-
-# 离线服务器安装
 export CUDA_HOME=/usr/local/cuda
-pip install --no-index --find-links=./sglang-offline sglang
+
+# SGLang (默认 cu130)
+pip install --upgrade pip uv
+uv pip install --prerelease=allow sglang
+
+# vLLM (cu130 wheel, 参考其官方 cu130 索引)
+pip install vllm   # 默认 cu130 构建
 ```
-
-**vLLM (cu130 wheel,文档原文 "binaries compiled with CUDA 13.0"):**
-```bash
-# 有网机器: cu130 wheel 是 GitHub release 上单个 .whl,依赖从 PyTorch cu130 索引拉
-export VLLM_VERSION=$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')
-mkdir vllm-offline && cd vllm-offline
-# 下 vLLM cu130 wheel
-wget https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cu130-cp38-abi3-manylinux_2_28_x86_64.whl
-# 预下依赖树 (vLLM wheel 自带 PyTorch,但 --extra-index 仍需提供解析)
-pip download --extra-index-url https://download.pytorch.org/whl/cu130/ \
-  --only-binary :all: ./vllm-${VLLM_VERSION}+cu130-cp38-abi3-manylinux_2_28_x86_64.whl
-
-# 离线服务器安装
-export CUDA_HOME=/usr/local/cuda
-pip install --no-index --find-links=./vllm-offline vllm
-```
-
-> 注: vLLM cu130 wheel 自带 PyTorch (文档原文 "bundles PyTorch and all required dependencies")。
-> SGLang 不自带,需 PyTorch cu130 + sglang-kernel + sgl-deep-gemm (均从各自索引)。
 
 ## 踩坑
 

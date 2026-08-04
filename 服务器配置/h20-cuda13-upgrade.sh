@@ -120,10 +120,22 @@ log "旧驱动已卸干净 ✓"
 
 # ---------- 第 2 步: 安装新驱动 610.57.04 ----------
 log "【2/5】安装驱动 ${DRIVER_VER}..."
-sh "NVIDIA-Linux-x86_64-${DRIVER_VER}.run" \
+# .run 是 makeself 自解压脚本, 首行必须是 #!/bin/sh。
+# 若被截断/损坏(头不完整或为空), "sh xxx.run --override" 会把 --override 当命令执行, 报 "override: command not found"。
+RUN_FILE="NVIDIA-Linux-x86_64-${DRIVER_VER}.run"
+if [[ ! -s "$RUN_FILE" ]] || [[ "$(head -c2 "$RUN_FILE")" != "#!" ]]; then
+  err "$RUN_FILE 损坏或不完整 (应为以 #! 开头的 makeself 脚本)。"
+  err "可能是 XDM 下载截断或存成了错误页。请重新下载后重跑。"
+  exit 1
+fi
+log "RUN_FILE 校验通过 ✓"
+
+# 先不带 --override 装; 若因发行版/内核不被识别报错, 再带 --override 兜底。
+# (不吞 stderr, 让真正的安装错误暴露出来; 损坏文件已在上面拦截)
+sh "$RUN_FILE" \
   --silent --accept-license --no-questions \
-  --no-drm --dkms 2>/dev/null || \
-sh "NVIDIA-Linux-x86_64-${DRIVER_VER}.run" \
+  --no-drm --dkms || \
+sh "$RUN_FILE" \
   --silent --accept-license --no-questions --no-drm --dkms --override
 
 modprobe nvidia 2>/dev/null || true

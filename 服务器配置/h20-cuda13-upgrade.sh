@@ -91,7 +91,7 @@ fi
 
 # ---------- 第 1 步: 卸载旧驱动 (R575) ----------
 log "【1/5】卸载旧 NVIDIA 驱动 / CUDA..."
-systemctl stop nv-fabricmanager 2>/dev/null || true
+systemctl stop nvidia-fabricmanager 2>/dev/null || true
 # .run 安装的驱动用自带卸载器
 if [[ -x /usr/bin/nvidia-uninstall ]]; then
   log "运行 nvidia-uninstall..."
@@ -134,11 +134,11 @@ log "驱动 ${DRIVER_VER} 安装成功 ✓"
 log "【3/5】安装 Fabric Manager ${DRIVER_VER}..."
 dpkg -i "${FABRIC_DEB}"
 systemctl daemon-reload
-systemctl enable nv-fabricmanager
-systemctl restart nv-fabricmanager
+systemctl enable nvidia-fabricmanager
+systemctl restart nvidia-fabricmanager
 sleep 3
 log "验证 Fabric Manager..."
-systemctl is-active --quiet nv-fabricmanager || { err "nv-fabricmanager 未运行: journalctl -u nv-fabricmanager -n 50"; exit 1; }
+systemctl is-active --quiet nvidia-fabricmanager || { err "nvidia-fabricmanager 未运行: journalctl -u nvidia-fabricmanager -n 50"; exit 1; }
 FM_VER="$(nv-fabricmanager -v 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo unknown)"
 log "Fabric Manager 版本: ${FM_VER}"
 if [[ "$FM_VER" != "$DRIVER_VER" ]]; then

@@ -173,8 +173,11 @@ log "Fabric Manager 就绪 ✓"
 # ---------- 第 4 步: 安装 CUDA Toolkit 13.0.2 (toolkit-only) ----------
 log "【4/5】安装 CUDA Toolkit ${CUDA_VER} (只装工具链,不覆盖驱动)..."
 # 关键: --toolkit 只装 toolkit,不用 .run 内自带的旧驱动 (580.95.05)
+# 该 runfile 参数(cuda_*.run --help 实测):
+#   --silent 隐含接受 EULA, 故不要再传 --accept-license (driver runfile 才认)
+#   man page 选项是 --no-man-page, 不是 --no-man-page-install
 sh "cuda_${CUDA_VER}_${CUDA_RUN_DRIVER_TAG}_linux.run" \
-  --toolkit --silent --override --accept-license --no-man-page-install
+  --toolkit --silent --override --no-man-page
 log "配置环境变量..."
 CUDA_LINK="/usr/local/cuda"
 CUDA_DIR="/usr/local/cuda-${CUDA_VER}"

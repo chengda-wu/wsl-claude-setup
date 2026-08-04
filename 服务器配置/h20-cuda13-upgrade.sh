@@ -71,7 +71,7 @@ log "三个包齐全 ✓"
 #   https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-610-57-04/index.html
 log "检查 VBIOS 是否满足 R610 要求 (>= 96.00.68.00.xx)..."
 if command -v nvidia-smi >/dev/null 2>&1; then
-  VBIOS="$(nvidia-smi -q 2>/dev/null | grep -i 'VBIOS Version' | head -1 | awk '{print $NF}')"
+  VBIOS="$(nvidia-smi -q 2>/dev/null | grep -i 'VBIOS Version' | head -1 | awk '{print $NF}' || true)"
   if [[ -n "${VBIOS:-}" ]]; then
     log "当前 VBIOS: ${VBIOS}"
     # 比较第三段 (十六进制): 96.00.XX.00.xx
@@ -141,7 +141,9 @@ sh "$RUN_FILE" \
 modprobe nvidia 2>/dev/null || true
 log "验证驱动..."
 nvidia-smi || { err "nvidia-smi 失败,驱动未起来。检查 dmesg | grep -i nvidia"; exit 1; }
-DRV_NOW="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)"
+# 注意 8 卡时 nvidia-smi 输出 8 行, head -1 提前关闭管道会让 nvidia-smi 收到 SIGPIPE(退出码 141),
+# 在 set -o pipefail 下整条管道非 0, 会触发 set -e 杀掉脚本。必须 || true 兜住。
+DRV_NOW="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || true)"
 log "驱动版本: ${DRV_NOW}"
 if [[ "$DRV_NOW" != "$DRIVER_VER" ]]; then
   err "驱动版本不符: 期望 ${DRIVER_VER},实际 ${DRV_NOW}"
@@ -165,7 +167,7 @@ if [[ "$FM_VER" != "$DRIVER_VER" ]]; then
   warn "Fabric Manager 版本 (${FM_VER}) 与驱动 (${DRIVER_VER}) 不一致,可能影响 NVSwitch。"
 fi
 log "验证 NVSwitch 拓扑 (应看到 8 卡全互联)..."
-nvidia-smi topo -m | head -12
+nvidia-smi topo -m 2>/dev/null | head -12 || true
 log "Fabric Manager 就绪 ✓"
 
 # ---------- 第 4 步: 安装 CUDA Toolkit 13.0.2 (toolkit-only) ----------
@@ -193,7 +195,7 @@ log "CUDA Toolkit ${CUDA_VER} 安装成功 ✓"
 
 # ---------- 第 5 步: 总结 ----------
 log "【5/5】升级完成。总结:"
-echo "  驱动:          $(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)"
+echo "  驱动:          $(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || true)"
 echo "  Fabric Manager: ${FM_VER}"
 echo "  CUDA Toolkit:  $(nvcc --version 2>/dev/null | grep -oE 'release [0-9.]+' | awk '{print $2}')"
 echo ""

@@ -75,5 +75,5 @@ pip install vllm   # 默认 cu130 构建
 
 - **CUDA `.run` 带旧驱动**: 13.0.2 的 runfile 内含驱动 580.95.05,比独立的 610.57.04 旧。务必 `--toolkit` 只装工具链,否则会把驱动降级。
 - **Fabric Manager 版本必须与驱动精确匹配**: H20 HGX 有 NVSwitch,版本不一致会导致 NVLink 拓扑起不来。`nv-fabricmanager -v` 必须等于驱动版本。
-- **20.04 卸旧驱动**: R575 若是 `.run` 装的,用 `/usr/bin/nvidia-uninstall`;deb 装的用 `apt-get --purge remove "*nvidia*"`。卸完 `nvidia-smi` 应 command not found,再装新的。
+- **20.04 卸旧驱动**: R575 若是 `.run` 装的,用 `/usr/bin/nvidia-uninstall`;deb 残留**不要**用 `*nvidia*` 通配 purge——会误删 `nvidia-container-toolkit`/`libnvidia-container*`,导致 `docker run --gpus all` 失效。脚本已收窄到 `nvidia-driver-*`/`nvidia-dkms-*`/`libnvidia-compute-*` 等驱动包,保留容器运行时。卸完 `nvidia-smi` 应 command not found,再装新的。
 - **内核模块占着装不上**: 卸载后 `modprobe -r` 不掉,需 `reboot`,重启后重跑脚本。

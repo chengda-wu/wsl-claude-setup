@@ -99,8 +99,14 @@ if [[ -x /usr/bin/nvidia-uninstall ]]; then
   log "运行 nvidia-uninstall..."
   yes | /usr/bin/nvidia-uninstall -s || true
 fi
-# deb/rpm 残留
-apt-get --purge remove -y "*nvidia*" "*cuda*" 2>/dev/null || true
+# deb 残留: 只删驱动/fabric 包, 保留 nvidia-container-toolkit 等容器运行时
+# (推理服务器常装 container-toolkit 跑 GPU 容器, "*nvidia*" 会误删导致 docker --gpus 失效)
+apt-get --purge remove -y \
+  "nvidia-driver-*" "nvidia-dkms-*" "nvidia-utils-*" "nvidia-fabricmanager-*" \
+  "cuda-drivers-*" \
+  "libnvidia-compute-*" "libnvidia-cfg*" "libnvidia-common-*" \
+  "libnvidia-decode-*" "libnvidia-encode-*" "libnvidia-extra-*" "libnvidia-fbc*" \
+  2>/dev/null || true
 apt-get autoremove -y 2>/dev/null || true
 # 内核模块
 modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia 2>/dev/null || true
@@ -181,5 +187,6 @@ echo "  CUDA Toolkit:  $(nvcc --version 2>/dev/null | grep -oE 'release [0-9.]+'
 echo ""
 warn "若改了内核模块,建议: sudo reboot 后再跑框架。"
 warn "框架 (vLLM/SGLang) 装 cu130 wheel:  export CUDA_HOME=/usr/local/cuda && pip install ... (见 README)"
+warn "旧 CUDA 工具链 (.run 装, apt 删不掉) 留在 /usr/local/cuda-12.x, symlink 已指向 13.0.2 不影响使用; 回收空间: sudo rm -rf /usr/local/cuda-12.{4,9}"
 
 log "全部完成 ✓"

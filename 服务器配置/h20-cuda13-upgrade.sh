@@ -67,6 +67,8 @@ done
 log "三个包齐全 ✓"
 
 # 升级前硬性检查: VBIOS (R610 要求 Hopper VBIOS >= 96.00.68.00.xx)
+# 来源: R610 Release Notes Known Issues
+#   https://docs.nvidia.com/datacenter/tesla/tesla-release-notes-610-57-04/index.html
 log "检查 VBIOS 是否满足 R610 要求 (>= 96.00.68.00.xx)..."
 if command -v nvidia-smi >/dev/null 2>&1; then
   VBIOS="$(nvidia-smi -q 2>/dev/null | grep -i 'VBIOS Version' | head -1 | awk '{print $NF}')"
